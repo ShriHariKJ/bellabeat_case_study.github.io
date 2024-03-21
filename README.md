@@ -45,3 +45,22 @@ The data has been generated from a distributed survey via Amazon Mechanical Turk
 
 The chosen data is comprehensive, with minute-level output for physical activity, heart rate, and sleep monitoring. Each user’s data is stored in a distinct dataset. These datasets are structured in a tabular format, each containing multiple identical columns. When combined, these datasets comprise a total of 18 CSV files [Kaggle Data](https://www.kaggle.com/arashnic/fitbit). The limitations of the dataset, such as the small sample size and the uneven distribution of data recording, will be taken into consideration during the analysis. The insights derived from these datasets will enable me to categorize, consolidate, and contrast the trends between different user segments.
 
+## Data Processing: From Raw to Refined
+
+### Tools Utilized 
+R Studio was the preferred tool for this data processing task, primarily due to its robustness and efficiency in managing large datasets. Furthermore, R Studio’s comprehensive support from open-source libraries like dplyr and ggplot2 made it a perfect fit for the task. R Studio is particularly favored for its advanced data visualization capabilities and its ease of use in statistical analysis. This makes it an excellent tool for data cleaning, transformation, and analysis.
+
+### Data Cleaning
+The initial step after consolidating the datasets into individual dataframe was to identify columns and rows with missing data. 
+* The total number of rows for daily_activity dataframe was 940 rows. It was found that it has 33 unique ids.
+* The total number of rows for calories dataframe was 940 rows. It was found that it has 33 unique ids.
+* The total number of rows for sleep dataframe was 413 rows. It was found that it has 24 unique ids.
+* The total number of rows for weight dataframe was 67 rows. It was found that it has 8 unique ids.
+
+Further investigation based on Product Focus, Marketing Strategy, Data Quality and User Engagement considerations, it may be advisable to exclude data points with fewer than 500 steps from the analysis.
+
+Given that number of unique ids is 33, the sample size is too small and data exclusion for steps. Given these limitations, additional data is required and insights gained from analyzing available data shall not be taken as conclusive.
+
+After removing rows, the data was ready for further processing and analysis but may not provide accurate analysis.
+
+
