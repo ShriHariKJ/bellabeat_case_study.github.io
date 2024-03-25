@@ -1,0 +1,478 @@
+# Installing the packages
+install.packages("tidyverse")
+install.packages("lubridate")
+install.packages("ggplot2")
+install.packages("reshape2")
+install.packages("plotly")
+install.packages("kaleido")
+install.packages("ggrepel")
+
+# Loading the packages
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(data.table)
+library(reshape2)
+library(scales)
+library(plotly)
+library(reticulate)
+library(kaleido)
+library(ggrepel)
+
+#Directory of the files
+dir1 <- "~/OneDrive/Data_Analytics_Course/Bellabeat/Bellabeat_data/mturkfitbit_export_4.12.16-5.12.16/Fitabase Data 4.12.16-5.12.16"
+
+# Loading the dataset in dataframes
+daily_activity <- read_csv(paste0(dir1, "/dailyActivity_merged.csv"))
+calories <- read_csv(paste0(dir1, "/dailyCalories_merged.csv"))
+intensities <- read_csv(paste0(dir1, "/dailyIntensities_merged.csv"))
+hourly_intensities <- read_csv(paste0(dir1, "/hourlyIntensities_merged.csv"))
+steps <- read_csv(paste0(dir1, "/dailySteps_merged.csv"))
+sleep <- read_csv(paste0(dir1, "/sleepDay_merged.csv"))
+weight <- read_csv(paste0(dir1, "/weightLogInfo_merged.csv"))
+hourly_step <- read_csv(paste0(dir1, "/hourlySteps_merged.csv"))
+
+
+# To view data and colnames
+View(daily_activity)
+str(daily_activity)
+head(daily_activity)
+colnames(daily_activity)
+View(weight)
+
+# To view data and colnames
+View(sleep)
+str(sleep)
+head(sleep)
+colnames(sleep)
+
+
+# Find the number of unique values in the "Id" column
+cat("Percentage of rows with unique id values for daily_activity_df:", n_distinct(daily_activity$Id), "\n")
+## 33
+cat("Percentage of rows with unique id values for calories:", n_distinct(calories$Id), "\n")
+## 33
+cat("Percentage of rows with unique id values for sleep:", n_distinct(sleep$Id), "\n")
+## 24
+cat("Percentage of rows with unique id values for steps:", n_distinct(steps$Id), "\n")
+## 33
+cat("Percentage of rows with unique id values for intensities:", n_distinct(intensities$Id), "\n")
+## 33
+cat("Percentage of rows with unique id values for weight:", n_distinct(weight$Id), "\n")
+## 8
+cat("Percentage of rows with unique id values for hourly_intensities:", n_distinct(hourly_intensities$Id), "\n")
+## 33
+
+## We will not include weight dataset as it has insufficient number of users
+
+## Analyzing the statistical summary of datasets
+## daily_activity
+daily_activity %>%  
+  select(TotalSteps,
+         TotalDistance,
+         SedentaryMinutes, Calories) %>%
+  summary()
+
+## Calories
+calories %>%  
+  select(Calories) %>%
+  summary()
+
+## steps
+steps %>%  
+  select(StepTotal) %>%
+  summary()
+
+## Sleep
+sleep %>%  
+  select(TotalSleepRecords, TotalMinutesAsleep, TotalTimeInBed) %>%
+  summary()
+
+
+# Convert "ActivityDate" column to datetime and rename it to "Date" in daily_activity dataframe
+daily_activity <- daily_activity %>%
+  mutate(Date = mdy(ActivityDate)) %>%
+  select(-ActivityDate)
+
+# Convert "SleepDay" column to datetime and rename it to "Date" in sleep dataframe
+sleep <- sleep %>%
+  mutate(Date = mdy_hms(SleepDay),
+         TotalHoursAsleep = round(TotalMinutesAsleep / 60, 2),
+         TotalHoursInBed = round(TotalTimeInBed / 60, 2)) %>%
+  select(-TotalMinutesAsleep, -TotalTimeInBed, -SleepDay)
+
+# Extract hour from "ActivityHour" column in hourly_intensities dataframe
+hourly_intensities <- hourly_intensities %>%
+  mutate(
+    ActivityHours = mdy_hms(ActivityHour),
+    ActivityHours = hour(ActivityHours)
+  ) %>%
+  select(-ActivityHour)
+
+# Based on Product Focus, Marketing Strategy, Data Quality and User Engagement considerations, it may be advisable to exclude data points with fewer than 500 steps from the analysis
+activity <- daily_activity %>%
+  filter(TotalSteps >= 500)
+
+# Merging activity and sleep datasets
+activity_sleep_merged <- merge(activity,sleep, by = c('Id','Date'))
+
+# Removing the duplicates
+activity_sleep_merged <- distinct(activity_sleep_merged)
+
+# Creating a column for NoSleepHours
+activity_sleep_merged$NoSleepHours <- activity_sleep_merged$TotalHoursInBed - activity_sleep_merged$TotalHoursAsleep
+
+# To view data and colnames
+View(activity_sleep_merged)
+str(activity_sleep_merged)
+summary(activity_sleep_merged)
+head(activity_sleep_merged)
+colnames(activity_sleep_merged)
+
+# Compute average steps
+average_steps_total <- mean(activity_sleep_merged$TotalSteps, na.rm = TRUE)
+
+cat("Average steps for Total Steps :", average_steps_total, "\n")
+# 8597.153 
+
+# Compute average steps per ID
+average_steps_by_id <- activity_sleep_merged %>%
+  group_by(Id) %>%
+  summarise(Average_Steps = mean(TotalSteps))
+
+# Compute average steps for average steps of each ids
+average_steps_for_average_steps_by_id <- mean(average_steps_by_id$Average_Steps, na.rm = TRUE)
+print(average_steps_for_average_steps_by_id)
+
+cat("Average steps for average steps of each ids :", average_steps_for_average_steps_by_id, "\n")
+# 7936.91 
+
+# Create a histogram of average steps
+average_steps_group_by_id <- ggplot(data = average_steps_by_id, aes(x = Average_Steps)) +
+  geom_histogram(binwidth = 2000, fill = "red", color = "black") +
+  labs(
+    title = "Average Steps",
+    subtitle = "Data collected from activity and sleep merged source", # Add a subtitle for additional information
+    caption = "Note: Average steps calculated based on number of steps recorded", # Add a caption for more context or explanation
+    x = "Average Steps",
+    y = "Count"
+  ) +
+  scale_x_continuous(breaks = seq(2000, max(average_steps_by_id$Average_Steps), by = 2000)) +
+  scale_y_continuous(breaks = seq(0, max(table(cut(average_steps_by_id$Average_Steps, breaks = seq(0, max(average_steps_by_id$Average_Steps), by = 2000)))), by = 1)) +
+  theme_minimal() +
+  theme(
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    panel.grid.major = element_line(linetype = "solid", color = "grey", linewidth = 0.5), # Use linewidth instead of size
+    panel.grid.minor = element_line(linetype = "dotted", color = "grey", linewidth = 0.5) # Use linewidth instead of size
+  )
+
+# Scatter plot to visualize the relation is linear or otherwise.
+
+# Create a scatter plot
+total_hours_assleep_Vs_in_bed_plot <- ggplot(data = activity_sleep_merged, aes(x = TotalHoursInBed, y = TotalHoursAsleep)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE, color = "blue", fill = "lightblue") +
+  labs(
+    title = "Total Hours Asleep Vs Hours In Bed",
+    x = "Total Hours In Bed",
+    y = "Total Hours Asleep",
+    subtitle = "Data collected from activity and sleep merged source", # Add a subtitle for additional information
+    caption = "Note: Total Hours calculated based on number of hours asleep recorded", # Add a caption for more context or explanation
+  ) +
+  geom_jitter() +
+  theme_minimal() +
+  theme(
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    panel.grid.major = element_line(linetype = "solid", color = "grey", linewidth = 0.5), # Use linewidth instead of size
+    panel.grid.minor = element_line(linetype = "dotted", color = "grey", linewidth = 0.5) # Use linewidth instead of size
+  )
+
+# Calculating day_of_week column
+activity_sleep_merged <- activity_sleep_merged %>% 
+  mutate( DayOfWeek = weekdays(as.Date(Date, "%m/%d/%Y")))
+
+# Compute average Hours asleep per day of the week
+average_sleep_by_day_of_week <- activity_sleep_merged %>%
+  group_by(DayOfWeek) %>%
+  summarise(Average_Sleep = mean(TotalHoursAsleep))
+print(average_sleep_by_day_of_week)
+
+# Order the days of the week
+average_sleep_by_day_of_week$DayOfWeek <- factor(average_sleep_by_day_of_week$DayOfWeek, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+
+week_colors <- colorRampPalette(c("yellow", "blue"))(7)
+
+# Create a bar plot
+average_sleep_by_day_of_week_plot <- ggplot(data = average_sleep_by_day_of_week, aes(x = DayOfWeek, y = Average_Sleep)) +
+  geom_bar(aes(fill = DayOfWeek),stat = "identity") +
+  labs(
+    title = "Total Hours Asleep During the Week",
+    x = "Day of the Week",
+    y = "Total Hours Asleep",
+    subtitle = "Data collected from activity and sleep merged source", # Add a subtitle for additional information
+    caption = "Note: Total Hours calculated based on number of hours asleep recorded", # Add a caption for more context or explanation
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = week_colors) +
+  theme(
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    panel.grid.major = element_line(linetype = "solid", color = "grey", linewidth = 0.5), # Use linewidth instead of size
+    panel.grid.minor = element_line(linetype = "dotted", color = "grey", linewidth = 0.5) # Use linewidth instead of size
+  ) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Reshape the data
+activity_data <- activity_sleep_merged %>%
+  gather(ActivityLevel, Minutes, VeryActiveMinutes, FairlyActiveMinutes, LightlyActiveMinutes, SedentaryMinutes)
+
+# Compute percentages for each activity level
+activity_levels <- activity_data %>%
+  group_by(ActivityLevel) %>%
+  summarise(TotalMinutes = sum(Minutes))
+
+activity_levels$Percentage <- activity_levels$TotalMinutes / sum(activity_levels$TotalMinutes) * 100
+
+# Create a pie chart
+activity_levels_plot <- plot_ly(activity_levels, labels = ~ActivityLevel, values = ~Percentage, type = 'pie',textposition = 'outside',textinfo = 'label+percent') %>%
+  layout(title = 'Activity Level Minutes',
+         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+# Add a new column 'Active' to the data frame
+activity_sleep_merged$Active <- ifelse(activity_sleep_merged$FairlyActiveMinutes >= 21.4 | activity_sleep_merged$VeryActiveMinutes >= 10.7, "Active", "Non-Active")
+
+# Create a new data frame where each row represents a unique user
+user_activity <- activity_sleep_merged %>%
+  group_by(Id) %>%
+  summarise(Active = ifelse(any(Active == "Active"), "Active", "Non-Active"))
+
+# Count the number of active and non-active users
+activity_count <- user_activity %>%
+  group_by(Active) %>%
+  summarise(Count = n())
+
+# Compute the number of active and non-active users
+active_count <- sum(user_activity$Active == "Active")
+non_active_count <- sum(user_activity$Active == "Non-Active")
+
+# Display the data
+cat("Number of active users: ", active_count, "\n")
+cat("Number of non-active users: ", non_active_count, "\n")
+
+# Hourly step data
+hourly_step <- hourly_step %>%
+  mutate(
+    ActivityHours = mdy_hms(ActivityHour),
+    ActivityHours = hour(ActivityHours)
+  )
+
+my_colors <- colorRampPalette(c("yellow", "blue"))(24)
+
+# Creating the bar plot for hourly steps
+hourly_step_plot <- ggplot(data = hourly_step, aes(x = ActivityHours, y = StepTotal, fill = factor(ActivityHours))) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Hourly Steps",
+    x = "Hour of the Day",
+    y = "Total Steps",
+    subtitle = "Data collected from activity and sleep merged source",
+    caption = "Note: Total steps recorded during each hour"
+  ) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_continuous(breaks = seq(2, 24, by = 2)) +
+  scale_fill_manual(values = my_colors) +
+  theme_minimal() +
+  theme(
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    panel.grid.major = element_line(linetype = "solid", color = "grey", size = 0.5),
+    panel.grid.minor = element_line(linetype = "dotted", color = "grey", size = 0.5)
+  )
+
+week_colors <- colorRampPalette(c("yellow", "blue"))(7)
+
+
+
+# Creating the bar plot for weekly steps
+weekly_step_plot <- ggplot(data = activity_sleep_merged, aes(x = DayOfWeek, y = TotalSteps, fill = factor(DayOfWeek))) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Weekly Steps",
+    x = "Day of Week",
+    y = "Total Steps",
+    subtitle = "Data collected from activity and sleep merged source",
+    caption = "Note: Total steps recorded during each day of week"
+  ) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_discrete() +
+  scale_fill_manual(values = week_colors) +
+  theme_minimal() +
+  theme(
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    panel.grid.major = element_line(linetype = "solid", color = "grey", size = 0.5),
+    panel.grid.minor = element_line(linetype = "dotted", color = "grey", size = 0.5)
+  ) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+# Plot for calories burned vs total steps
+calories_burned_vs_total_steps_plot <- ggplot(data = activity_sleep_merged, aes(x = TotalSteps, y = Calories)) +
+  geom_point() +
+  stat_smooth(method = lm, se = FALSE) +
+  labs(
+    title = "Calories Burned vs Total Steps",
+    x = "Total Steps",
+    y = "Calories Burned"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    panel.grid.major = element_line(linetype = "solid", color = "grey", size = 0.5),
+    panel.grid.minor = element_line(linetype = "dotted", color = "grey", size = 0.5)
+  )
+
+# Convert SedentaryMinutes to hours
+activity_sleep_merged$SedentaryHours <- activity_sleep_merged$SedentaryMinutes / 60
+
+# Plot for TotalHoursAsleep vs sedentary minutes  
+total_hours_asleep_vs_sedentary_plot <- ggplot(data = activity_sleep_merged, aes(x = TotalHoursAsleep, y = SedentaryHours)) +
+  geom_point() +
+  stat_smooth(method = lm, se = FALSE) +
+  labs(
+    title = "Total Sleep Time vs Sedentary Hours",
+    x = "Total Sleep Time (hours)",
+    y = "Sedentary Hours",
+    subtitle = "Data collected from activity and sleep merged source",
+    caption = "Note: Total sleep time recorded during each day of week"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    panel.grid.major = element_line(linetype = "solid", color = "grey", size = 0.5),
+    panel.grid.minor = element_line(linetype = "dotted", color = "grey", size = 0.5)
+  )
+
+# Plot for calories vs Steps for sedentiary minutes
+calories_vs_steps_for_sedentiary_plot <- ggplot(data = activity_sleep_merged, aes(x = TotalSteps, y = Calories, color = SedentaryMinutes)) +
+  geom_point() +
+  stat_smooth(method = lm, se = FALSE) +
+  scale_color_gradient(low = "blue", high = "yellow") +
+  labs(
+    title = "Calories Burned vs Total Steps",
+    x = "Total Steps",
+    y = "Calories Burned",
+    color = "Sedentary Minutes",
+    subtitle = "Data collected from activity and sleep merged source",
+    caption = "Note: Total steps recorded"
+  ) +
+  scale_x_continuous(breaks = seq(0, max(activity_sleep_merged$TotalSteps), by = 10000)) +
+  theme_minimal() +
+  theme(
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    panel.grid.major = element_line(linetype = "solid", color = "grey", size = 0.5),
+    panel.grid.minor = element_line(linetype = "dotted", color = "grey", size = 0.5)
+  )
+
+
+# Plot for calories burned vs Very Active minutes
+calories_burned_vs_very_active_minutes_plot <- ggplot(data = activity_sleep_merged, aes(x = VeryActiveMinutes, y = Calories)) +
+  geom_point() +
+  stat_smooth(method = lm, se = FALSE) +
+  labs(
+    title = "Calories Burned vs Very Active Minutes",
+    x = "Very Active Minutes",
+    y = "Calories Burned",   
+    subtitle = "Data collected from activity and sleep merged source",
+    caption = "Note: Total steps recorded"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    panel.grid.major = element_line(linetype = "solid", color = "grey", size = 0.5),
+    panel.grid.minor = element_line(linetype = "dotted", color = "grey", size = 0.5)
+  )
+
+activity_sleep_merged$day_number <- wday(activity_sleep_merged$Date)
+
+# Group by operation
+active_minutes_per_day <- activity_sleep_merged %>%
+  group_by(day_number, DayOfWeek) %>%
+  summarise(Minutes = sum(VeryActiveMinutes), .groups = "drop")
+
+# Order the days of the week
+active_minutes_per_day <- active_minutes_per_day[order(active_minutes_per_day$day_number),]
+
+week_colors <- colorRampPalette(c("yellow", "blue"))(7)
+
+# Create the plot
+active_minutes_per_day_plot <- ggplot(data = active_minutes_per_day, aes(x = reorder(DayOfWeek, day_number), y = Minutes)) +
+  geom_bar(aes(fill = DayOfWeek), stat = "identity") +
+  labs(
+    title = "Very Active Minutes per Day",
+    x = "Day of the Week",
+    y = "Very Active Minutes",
+    subtitle = "Data collected from activity and sleep merged source",
+    caption = "Note: Total steps recorded"
+  ) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_discrete() +
+  scale_fill_manual(values = week_colors) +
+  theme_minimal() +
+  theme(
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    panel.grid.major = element_line(linetype = "solid", color = "grey", size = 0.5),
+    panel.grid.minor = element_line(linetype = "dotted", color = "grey", size = 0.5)
+  ) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Directory path where you want to save the plots
+directory_path <- "C:/Users/91807/Documents/OneDrive/Data_Analytics_Course/Bellabeat/Bellabeat_data/mturkfitbit_export_4.12.16-5.12.16/Fitabase Data 4.12.16-5.12.16"
+
+# Save the plot for average_steps_group_by_id
+ggsave(file.path(directory_path, "average_steps_group_by_id_plot.jpg"), plot = average_steps_group_by_id, width = 16, height = 9, units = "in")
+
+# Save the plot for total_hours_assleep_Vs_in_bed_plot
+ggsave(file.path(directory_path, "total_hours_assleep_Vs_in_bed_plot.jpg"), plot = total_hours_assleep_Vs_in_bed_plot, width = 16, height = 9, units = "in")
+
+# Save the plot for average_sleep_by_day_of_week_plot
+ggsave(file.path(directory_path, "average_sleep_by_day_of_week_plot.jpg"), plot = average_sleep_by_day_of_week_plot, width = 16, height = 9, units = "in")
+
+# Save the plot as a standalone HTML file
+htmlwidgets::saveWidget(activity_levels_plot, file.path(directory_path, "temp_plot.html"), selfcontained = FALSE)
+
+# Convert the HTML file to PNG
+webshot::webshot(file.path(directory_path, "temp_plot.html"), file = file.path(directory_path, "activity_levels_plot.png"), vwidth = 1600, vheight = 900)
+
+# Save the plot for hourly_step_plot
+ggsave(file.path(directory_path, "hourly_step_plot.jpg"), plot = hourly_step_plot, width = 16, height = 9, units = "in")
+
+# Save the plot for weekly_step_plot
+ggsave(file.path(directory_path, "weekly_step_plot.jpg"), plot = weekly_step_plot, width = 16, height = 9, units = "in")
+
+# Save the plot for calories_burned_vs_total_steps_plot
+ggsave(file.path(directory_path, "calories_burned_vs_total_steps_plot.jpg"), plot = calories_burned_vs_total_steps_plot, width = 16, height = 9, units = "in")
+
+# Save the plot for total_hours_asleep_vs_sedentary_plot
+ggsave(file.path(directory_path, "total_hours_asleep_vs_sedentary_plot.jpg"), plot = total_hours_asleep_vs_sedentary_plot, width = 16, height = 9, units = "in")
+
+# Save the plot for calories_vs_steps_for_sedentiary_plot
+ggsave(file.path(directory_path, "calories_vs_steps_for_sedentiary_plot.jpg"), 
+       plot = calories_vs_steps_for_sedentiary_plot + geom_smooth(aes(group = 1), color = "red"),
+       width = 16, 
+       height = 9, 
+       units = "in")
+
+# Save the plot for calories_burned_vs_very_active_minutes_plot
+ggsave(file.path(directory_path, "calories_burned_vs_very_active_minutes_plot.jpg"), plot = calories_burned_vs_very_active_minutes_plot, width = 16, height = 9, units = "in")
+
+# Save the plot for active_minutes_per_day_plot
+ggsave(file.path(directory_path, "active_minutes_per_day_plot.jpg"), plot = active_minutes_per_day_plot, width = 16, height = 9, units = "in")
