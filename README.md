@@ -125,7 +125,7 @@ These analyses collectively offer insights into user behavior, including physica
 
 ## Communicating Findings Through Visualizations
 
-In this phase, I utilized R Studio to craft insightful visualizations that effectively communicate the outcomes of my analysis. The visualizations, along with the derived insights, can be accessed at the provided location. R Studio, with its powerful graphics capabilities, was instrumental in this process. Please note that the specific libraries used for visualization may vary based on the requirements of the analysis. The presentation explaining the visualization is attached here. [Presentation_of_findings](add the presentation link)
+In this phase, I utilized R Studio to craft insightful visualizations that effectively communicate the outcomes of my analysis. The visualizations, along with the derived insights, can be accessed at the provided location. R Studio, with its powerful graphics capabilities, was instrumental in this process. Please note that the specific libraries used for visualization may vary based on the requirements of the analysis. The presentation explaining the visualization is attached here. [Presentation_of_findings](https://github.com/ShriHariKJ/bellabeat_case_study.github.io/blob/bf288e0225d7556634069954b96b62c082fd4272/Presentation/Bellabeat_Data_Analysis.pptx)
 
 ## Principal Discoveries and Insights
 
